@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TextBridge</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffffff">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #111;
+      --muted: #8e8e93;
+      --overlay: rgba(0,0,0,0.4);
+    }
+
+    .dark {
+      --bg: #0f0f10;
+      --text: #f5f5f7;
+      --muted: #7a7a80;
+      --overlay: rgba(0,0,0,0.6);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.3s ease, color 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 28px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .title {
+      font-weight: 500;
+      letter-spacing: 0.4px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+    }
+
+    button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      color: var(--text);
+    }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 50px 28px;
+      font-size: 19px;
+      font-weight: 300;
+      line-height: 1.7;
+      background: transparent;
+      color: var(--text);
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 12px;
+    }
+
+    /* QR MODAL */
+
+    #qrOverlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: 0.25s ease;
+    }
+
+    #qrOverlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #qrBox {
+      background: var(--bg);
+      padding: 28px;
+      border-radius: 18px;
+      transform: scale(0.9);
+      transition: 0.25s ease;
+    }
+
+    #qrOverlay.active #qrBox {
+      transform: scale(1);
+    }
+
+    /* Copy feedback */
+
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: var(--bg);
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 12px;
+      opacity: 0;
+      transition: 0.3s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="title">TextBridge</div>
+  <div class="controls">
+    <button onclick="copyText()">Copy</button>
+    <button onclick="clearText()">Clear</button>
+    <button onclick="toggleTheme()">Theme</button>
+    <button id="qrBtn">QR</button>
+  </div>
+</header>
+
+<textarea id="textInput" placeholder="Start typing..."></textarea>
+
+<footer>
+  Auto-saved locally • Private • Installable
+</footer>
+
+<!-- QR Modal -->
+<div id="qrOverlay">
+  <div id="qrBox"></div>
+</div>
+
+<div id="toast" class="toast">Copied</div>
+
+<script type="module">
+  import { initializeApp } 
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+
+  import { getDatabase, ref, set, onValue } 
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+
+  // Firebase configuration
+  const firebaseConfig = {
+      apiKey: "AIzaSyCUq6hxZ3PmXF76xm6t_WVQsn5uhOD-z48",
+      authDomain: "textbridge-2697f.firebaseapp.com",
+      databaseURL: "https://textbridge-2697f-default-rtdb.firebaseio.com",
+      projectId: "textbridge-2697f",
+      storageBucket: "textbridge-2697f.firebasestorage.app",
+      messagingSenderId: "260570991041",
+      appId: "1:260570991041:web:afc8fbd02efe84ec208740"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const textRef = ref(db, "sharedText");
+
+  // DOM Elements
+  const textarea = document.getElementById("textInput");
+  const qrOverlay = document.getElementById("qrOverlay");
+  const qrBox = document.getElementById("qrBox");
+  const qrBtn = document.getElementById("qrBtn");
+  const toast = document.getElementById("toast");
+
+  /* --- Local Storage & Theme Logic --- */
+
+  // Load saved theme
+  if (localStorage.getItem("tb-theme") === "dark") {
+    document.body.classList.add("dark");
+  }
+
+  // Load saved text initially (will be overwritten by Firebase if data exists)
+  const localData = localStorage.getItem("tb-data");
+  if (localData) textarea.value = localData;
+
+  /* --- Firebase Sync Logic --- */
+
+  // 1. Send updates to Firebase when typing
+  textarea.addEventListener("input", () => {
+    const text = textarea.value;
+    
+    // Save locally
+    localStorage.setItem("tb-data", text);
+    
+    // Send to Firebase
+    set(textRef, text);
+  });
+
+  // 2. Listen for real-time updates from Firebase
+  onValue(textRef, (snapshot) => {
+    const data = snapshot.val();
+    
+    // Only update if data exists AND the user isn't currently typing
+    // This prevents the cursor from jumping around while you edit
+    if (data !== null && document.activeElement !== textarea) {
+      textarea.value = data;
+      // Update local storage to match server
+      localStorage.setItem("tb-data", data); 
+    }
+  });
+
+  /* --- UI Helper Functions (Global Scope) --- */
+
+  window.copyText = () => {
+    navigator.clipboard.writeText(textarea.value);
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 1200);
+  };
+
+  window.clearText = () => {
+    textarea.value = "";
+    localStorage.removeItem("tb-data");
+    // Also clear the data in Firebase so other devices clear too
+    set(textRef, ""); 
+  };
+
+  window.toggleTheme = () => {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("tb-theme",
+      document.body.classList.contains("dark") ? "dark" : "light"
+    );
+  };
+
+  /* QR OPEN */
+  qrBtn.addEventListener("click", () => {
+    qrBox.innerHTML = "";
+    new QRCode(qrBox, {
+      text: window.location.href,
+      width: 180,
+      height: 180
+    });
+    qrOverlay.classList.add("active");
+  });
+
+  /* QR CLOSE */
+  qrOverlay.addEventListener("click", (e) => {
+    if (e.target === qrOverlay) {
+      qrOverlay.classList.remove("active");
+      qrBox.innerHTML = "";
+    }
+  });
+
+  /* Service Worker */
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+  }
+</script>
+
+</body>
+</html>
