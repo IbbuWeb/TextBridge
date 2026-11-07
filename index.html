@@ -231,13 +231,10 @@
   <header>
     <div class="title">TextBridge</div>
     <div class="controls">
-      <select id="roomSelect" title="Room"></select>
-      <button id="newRoomBtn">New room</button>
       <button onclick="copyText()">Copy</button>
       <button onclick="clearText()">Clear</button>
       <button onclick="toggleTheme()">Theme</button>
       <button id="qrBtn">QR</button>
-      <button id="lockBtn">Lock</button>
     </div>
   </header>
 
@@ -282,8 +279,6 @@
   const pinGate = document.getElementById("pinGate");
   const pinInput = document.getElementById("pinInput");
   const pinError = document.getElementById("pinError");
-  const roomSelect = document.getElementById("roomSelect");
-  const newRoomBtn = document.getElementById("newRoomBtn");
 
   if (localStorage.getItem("tb-theme") === "dark") {
     document.body.classList.add("dark");
@@ -319,59 +314,27 @@
       }
     }
   });
-  document.getElementById("lockBtn").addEventListener("click", lock);
   if (unlocked) { pinGate.classList.add("hidden"); appEl.classList.remove("locked"); }
 
-  let rooms = JSON.parse(localStorage.getItem("tb-rooms") || '["main"]');
-  if (!Array.isArray(rooms) || !rooms.length) rooms = ["main"];
-  let currentRoom = localStorage.getItem("tb-room") || rooms[0];
-  if (!rooms.includes(currentRoom)) currentRoom = rooms[0];
+  const currentRoom = "main";
   let roomRef = null;
   let currentUnsub = null;
   let writeTimer = null;
 
-  function renderRooms() {
-    roomSelect.innerHTML = "";
-    rooms.forEach(r => {
-      const o = document.createElement("option");
-      o.value = r; o.textContent = r;
-      if (r === currentRoom) o.selected = true;
-      roomSelect.appendChild(o);
-    });
-  }
-
-  function openRoom(id) {
+  function openRoom() {
     if (currentUnsub) { currentUnsub(); currentUnsub = null; }
-    currentRoom = id;
-    localStorage.setItem("tb-room", id);
-    roomRef = ref(db, `rooms/${id}`);
+    roomRef = ref(db, `rooms/${currentRoom}`);
     textarea.value = "";
-    const local = localStorage.getItem(`tb-data-${id}`);
+    const local = localStorage.getItem(`tb-data-${currentRoom}`);
     if (local) textarea.value = local;
     currentUnsub = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (data !== null && document.activeElement !== textarea) {
         textarea.value = data;
-        localStorage.setItem(`tb-data-${id}`, data);
+        localStorage.setItem(`tb-data-${currentRoom}`, data);
       }
     }, (err) => console.error(err));
   }
-
-  function saveRoomList() { localStorage.setItem("tb-rooms", JSON.stringify(rooms)); }
-
-  newRoomBtn.addEventListener("click", () => {
-    const name = prompt("New room name:");
-    if (!name) return;
-    const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30) || `room-${Date.now()}`;
-    if (rooms.includes(id)) { alert("Room exists"); return; }
-    rooms.push(id);
-    saveRoomList();
-    renderRooms();
-    roomSelect.value = id;
-    openRoom(id);
-  });
-
-  roomSelect.addEventListener("change", () => openRoom(roomSelect.value));
 
   textarea.addEventListener("input", () => {
     const text = textarea.value;
@@ -382,7 +345,7 @@
   textarea.addEventListener("blur", () => { if (roomRef) set(roomRef, textarea.value); });
   window.addEventListener("beforeunload", () => { if (roomRef) set(roomRef, textarea.value); });
 
-  function initRooms() { renderRooms(); openRoom(currentRoom); }
+  function initRooms() { openRoom(); }
   if (unlocked) initRooms();
 
   window.copyText = () => {
