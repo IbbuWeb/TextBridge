@@ -17,6 +17,7 @@
       --text: #111;
       --muted: #8e8e93;
       --overlay: rgba(0,0,0,0.4);
+      --sidebar: #f7f7f8;
     }
 
     .dark {
@@ -24,6 +25,7 @@
       --text: #f5f5f7;
       --muted: #7a7a80;
       --overlay: rgba(0,0,0,0.6);
+      --sidebar: #161617;
     }
 
     * { box-sizing: border-box; }
@@ -34,13 +36,63 @@
       background: var(--bg);
       color: var(--text);
       transition: background 0.3s ease, color 0.3s ease;
-      display: flex;
-      flex-direction: column;
       height: 100vh;
+      overflow: hidden;
     }
 
-    #app { display: flex; flex-direction: column; height: 100vh; transition: filter 0.25s ease; }
+    #app { display: flex; height: 100vh; transition: filter 0.25s ease; }
     #app.locked { filter: blur(12px); pointer-events: none; user-select: none; }
+
+    aside {
+      width: 170px;
+      background: var(--sidebar);
+      border-right: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      padding: 18px 10px;
+      gap: 4px;
+    }
+    .dark aside { border-right-color: rgba(255,255,255,0.08); }
+
+    .sb-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      padding: 4px 8px 12px;
+      letter-spacing: 0.4px;
+    }
+
+    .tabs { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
+
+    .tab {
+      text-align: left;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab:hover { background: rgba(0,0,0,0.05); }
+    .dark .tab:hover { background: rgba(255,255,255,0.06); }
+    .tab.active { background: var(--text); color: var(--bg); }
+
+    .new-room {
+      margin-top: 6px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px dashed var(--muted);
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .new-room:hover { color: var(--text); border-color: var(--text); }
+
+    main { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
 
     header {
       display: flex;
@@ -49,8 +101,6 @@
       padding: 20px 28px;
       font-size: 13px;
       color: var(--muted);
-      gap: 12px;
-      flex-wrap: wrap;
     }
 
     .title {
@@ -61,29 +111,18 @@
     .controls {
       display: flex;
       gap: 16px;
-      align-items: center;
-      flex-wrap: wrap;
     }
 
-    button, select {
+    button {
       background: none;
       border: none;
       color: var(--muted);
       cursor: pointer;
       font-size: 13px;
       transition: 0.2s;
-      font-family: inherit;
     }
 
-    button:hover, select:hover {
-      color: var(--text);
-    }
-
-    select {
-      border: 1px solid var(--muted);
-      border-radius: 6px;
-      padding: 2px 6px;
-      background: var(--bg);
+    button:hover {
       color: var(--text);
     }
 
@@ -228,21 +267,28 @@
 </div>
 
 <div id="app" class="locked">
-  <header>
-    <div class="title">TextBridge</div>
-    <div class="controls">
-      <button onclick="copyText()">Copy</button>
-      <button onclick="clearText()">Clear</button>
-      <button onclick="toggleTheme()">Theme</button>
-      <button id="qrBtn">QR</button>
-    </div>
-  </header>
+  <aside>
+    <div class="sb-title">TextBridge</div>
+    <div id="roomTabs" class="tabs"></div>
+    <button id="newRoomBtn" class="new-room">+ New</button>
+  </aside>
+  <main>
+    <header>
+      <div class="title">TextBridge</div>
+      <div class="controls">
+        <button onclick="copyText()">Copy</button>
+        <button onclick="clearText()">Clear</button>
+        <button onclick="toggleTheme()">Theme</button>
+        <button id="qrBtn">QR</button>
+      </div>
+    </header>
 
-  <textarea id="textInput" placeholder="Start typing..."></textarea>
+    <textarea id="textInput" placeholder="Start typing..."></textarea>
 
-  <footer>
-    Auto-saved locally • Private • Installable
-  </footer>
+    <footer>
+      Auto-saved locally • Private • Installable
+    </footer>
+  </main>
 </div>
 
 <div id="qrOverlay">
@@ -279,6 +325,8 @@
   const pinGate = document.getElementById("pinGate");
   const pinInput = document.getElementById("pinInput");
   const pinError = document.getElementById("pinError");
+  const roomTabs = document.getElementById("roomTabs");
+  const newRoomBtn = document.getElementById("newRoomBtn");
 
   if (localStorage.getItem("tb-theme") === "dark") {
     document.body.classList.add("dark");
@@ -316,25 +364,54 @@
   });
   if (unlocked) { pinGate.classList.add("hidden"); appEl.classList.remove("locked"); }
 
-  const currentRoom = "main";
+  let rooms = JSON.parse(localStorage.getItem("tb-rooms") || '["main"]');
+  if (!Array.isArray(rooms) || !rooms.length) rooms = ["main"];
+  let currentRoom = localStorage.getItem("tb-room") || rooms[0];
+  if (!rooms.includes(currentRoom)) currentRoom = rooms[0];
   let roomRef = null;
   let currentUnsub = null;
   let writeTimer = null;
 
-  function openRoom() {
+  function renderTabs() {
+    roomTabs.innerHTML = "";
+    rooms.forEach(r => {
+      const b = document.createElement("button");
+      b.className = "tab" + (r === currentRoom ? " active" : "");
+      b.textContent = r;
+      b.addEventListener("click", () => { if (r !== currentRoom) { currentRoom = r; renderTabs(); openRoom(r); } });
+      roomTabs.appendChild(b);
+    });
+  }
+
+  function openRoom(id) {
     if (currentUnsub) { currentUnsub(); currentUnsub = null; }
-    roomRef = ref(db, `rooms/${currentRoom}`);
+    currentRoom = id;
+    localStorage.setItem("tb-room", id);
+    roomRef = ref(db, `rooms/${id}`);
     textarea.value = "";
-    const local = localStorage.getItem(`tb-data-${currentRoom}`);
+    const local = localStorage.getItem(`tb-data-${id}`);
     if (local) textarea.value = local;
     currentUnsub = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (data !== null && document.activeElement !== textarea) {
         textarea.value = data;
-        localStorage.setItem(`tb-data-${currentRoom}`, data);
+        localStorage.setItem(`tb-data-${id}`, data);
       }
     }, (err) => console.error(err));
+    renderTabs();
   }
+
+  function saveRoomList() { localStorage.setItem("tb-rooms", JSON.stringify(rooms)); }
+
+  newRoomBtn.addEventListener("click", () => {
+    const name = prompt("New clipboard name:");
+    if (!name) return;
+    const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30) || `room-${Date.now()}`;
+    if (rooms.includes(id)) { alert("Already exists"); return; }
+    rooms.push(id);
+    saveRoomList();
+    openRoom(id);
+  });
 
   textarea.addEventListener("input", () => {
     const text = textarea.value;
@@ -345,7 +422,7 @@
   textarea.addEventListener("blur", () => { if (roomRef) set(roomRef, textarea.value); });
   window.addEventListener("beforeunload", () => { if (roomRef) set(roomRef, textarea.value); });
 
-  function initRooms() { openRoom(); }
+  function initRooms() { renderTabs(); openRoom(currentRoom); }
   if (unlocked) initRooms();
 
   window.copyText = () => {
