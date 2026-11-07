@@ -17,6 +17,7 @@
       --text: #111;
       --muted: #8e8e93;
       --overlay: rgba(0,0,0,0.4);
+      --accent: #111;
     }
 
     .dark {
@@ -24,6 +25,7 @@
       --text: #f5f5f7;
       --muted: #7a7a80;
       --overlay: rgba(0,0,0,0.6);
+      --accent: #f5f5f7;
     }
 
     * { box-sizing: border-box; }
@@ -37,7 +39,12 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
+      overflow: hidden;
     }
+
+    /* Gate blur */
+    #app { display: flex; flex-direction: column; height: 100vh; transition: filter 0.25s ease; }
+    #app.locked { filter: blur(12px); pointer-events: none; user-select: none; }
 
     header {
       display: flex;
@@ -46,28 +53,30 @@
       padding: 20px 28px;
       font-size: 13px;
       color: var(--muted);
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
-    .title {
-      font-weight: 500;
-      letter-spacing: 0.4px;
-    }
+    .title { font-weight: 500; letter-spacing: 0.4px; }
 
-    .controls {
-      display: flex;
-      gap: 16px;
-    }
+    .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 
-    button {
+    button, select {
       background: none;
       border: none;
       color: var(--muted);
       cursor: pointer;
       font-size: 13px;
       transition: 0.2s;
+      font-family: inherit;
     }
+    button:hover, select:hover { color: var(--text); }
 
-    button:hover {
+    select {
+      border: 1px solid var(--muted);
+      border-radius: 6px;
+      padding: 2px 6px;
+      background: var(--bg);
       color: var(--text);
     }
 
@@ -92,8 +101,6 @@
       padding: 12px;
     }
 
-    /* QR MODAL */
-
     #qrOverlay {
       position: fixed;
       inset: 0;
@@ -105,12 +112,9 @@
       opacity: 0;
       visibility: hidden;
       transition: 0.25s ease;
+      z-index: 50;
     }
-
-    #qrOverlay.active {
-      opacity: 1;
-      visibility: visible;
-    }
+    #qrOverlay.active { opacity: 1; visibility: visible; }
 
     #qrBox {
       background: var(--bg);
@@ -119,12 +123,7 @@
       transform: scale(0.9);
       transition: 0.25s ease;
     }
-
-    #qrOverlay.active #qrBox {
-      transform: scale(1);
-    }
-
-    /* Copy feedback */
+    #qrOverlay.active #qrBox { transform: scale(1); }
 
     .toast {
       position: fixed;
@@ -138,46 +137,88 @@
       font-size: 12px;
       opacity: 0;
       transition: 0.3s ease;
+      z-index: 60;
     }
+    .toast.show { opacity: 1; }
 
-    .toast.show {
-      opacity: 1;
+    /* PIN gate */
+    #pinGate {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg);
     }
+    #pinGate.hidden { display: none; }
+    .pin-card {
+      text-align: center;
+      padding: 40px;
+    }
+    .pin-card h1 { font-weight: 500; margin: 0 0 8px; }
+    .pin-card p { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+    .pin-input {
+      font-size: 28px;
+      letter-spacing: 12px;
+      text-align: center;
+      width: 220px;
+      padding: 12px;
+      border: 1px solid var(--muted);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+    }
+    .pin-input.shake { animation: shake 0.35s; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+    .pin-error { color: #e53935; font-size: 12px; margin-top: 12px; min-height: 16px; }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="title">TextBridge</div>
-  <div class="controls">
-    <button onclick="copyText()">Copy</button>
-    <button onclick="clearText()">Clear</button>
-    <button onclick="toggleTheme()">Theme</button>
-    <button id="qrBtn">QR</button>
+<div id="pinGate">
+  <div class="pin-card">
+    <h1>TextBridge</h1>
+    <p>Enter 6-digit access PIN</p>
+    <input id="pinInput" class="pin-input" type="password" inputmode="numeric" maxlength="6" autocomplete="off" autofocus>
+    <div id="pinError" class="pin-error"></div>
   </div>
-</header>
-
-<textarea id="textInput" placeholder="Start typing..."></textarea>
-
-<footer>
-  Auto-saved locally • Private • Installable
-</footer>
-
-<!-- QR Modal -->
-<div id="qrOverlay">
-  <div id="qrBox"></div>
 </div>
 
+<div id="app" class="locked">
+  <header>
+    <div class="title">TextBridge</div>
+    <div class="controls">
+      <select id="roomSelect" title="Room"></select>
+      <button id="newRoomBtn">New room</button>
+      <button onclick="copyText()">Copy</button>
+      <button onclick="clearText()">Clear</button>
+      <button id="qrBtn">QR</button>
+      <button id="lockBtn">Lock</button>
+    </div>
+  </header>
+
+  <textarea id="textInput" placeholder="Start typing..."></textarea>
+
+  <footer>Auto-saved locally • Private • Installable</footer>
+</div>
+
+<div id="qrOverlay"><div id="qrBox"></div></div>
 <div id="toast" class="toast">Copied</div>
 
 <script type="module">
-  import { initializeApp } 
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 
-  import { getDatabase, ref, set, onValue } 
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+  // shortcut: client-side PIN is "casual privacy" only; source is viewable. Upgrade to Firebase Auth + rules for real security.
+  const SITE_PIN = "080801";
 
-  // Firebase configuration
   const firebaseConfig = {
       apiKey: "AIzaSyCUq6hxZ3PmXF76xm6t_WVQsn5uhOD-z48",
       authDomain: "textbridge-2697f.firebaseapp.com",
@@ -188,100 +229,169 @@
       appId: "1:260570991041:web:afc8fbd02efe84ec208740"
   };
 
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const textRef = ref(db, "sharedText");
 
-  // DOM Elements
   const textarea = document.getElementById("textInput");
   const qrOverlay = document.getElementById("qrOverlay");
   const qrBox = document.getElementById("qrBox");
   const qrBtn = document.getElementById("qrBtn");
   const toast = document.getElementById("toast");
+  const appEl = document.getElementById("app");
+  const pinGate = document.getElementById("pinGate");
+  const pinInput = document.getElementById("pinInput");
+  const pinError = document.getElementById("pinError");
+  const roomSelect = document.getElementById("roomSelect");
+  const newRoomBtn = document.getElementById("newRoomBtn");
 
-  /* --- Local Storage & Theme Logic --- */
-
-  // Load saved theme
-  if (localStorage.getItem("tb-theme") === "dark") {
+  /* Theme */
+  if (localStorage.getItem("tb-theme") === "dark") document.body.classList.add("dark");
+  if (!localStorage.getItem("tb-theme") && matchMedia("(prefers-color-scheme: dark)").matches) {
     document.body.classList.add("dark");
   }
 
-  // Load saved text initially (will be overwritten by Firebase if data exists)
-  const localData = localStorage.getItem("tb-data");
-  if (localData) textarea.value = localData;
-
-  /* --- Firebase Sync Logic --- */
-
-  // 1. Send updates to Firebase when typing
-  textarea.addEventListener("input", () => {
-    const text = textarea.value;
-    
-    // Save locally
-    localStorage.setItem("tb-data", text);
-    
-    // Send to Firebase
-    set(textRef, text);
-  });
-
-  // 2. Listen for real-time updates from Firebase
-  onValue(textRef, (snapshot) => {
-    const data = snapshot.val();
-    
-    // Only update if data exists AND the user isn't currently typing
-    // This prevents the cursor from jumping around while you edit
-    if (data !== null && document.activeElement !== textarea) {
-      textarea.value = data;
-      // Update local storage to match server
-      localStorage.setItem("tb-data", data); 
+  /* PIN gate */
+  let unlocked = sessionStorage.getItem("tb-unlocked") === "1";
+  function unlock() {
+    unlocked = true;
+    sessionStorage.setItem("tb-unlocked", "1");
+    pinGate.classList.add("hidden");
+    appEl.classList.remove("locked");
+    initRooms();
+  }
+  function lock() {
+    unlocked = false;
+    sessionStorage.removeItem("tb-unlocked");
+    pinGate.classList.remove("hidden");
+    appEl.classList.add("locked");
+    pinInput.value = "";
+    pinError.textContent = "";
+    if (currentUnsub) { currentUnsub(); currentUnsub = null; }
+  }
+  pinInput.addEventListener("input", () => {
+    pinInput.value = pinInput.value.replace(/\D/g, "").slice(0, 6);
+    pinError.textContent = "";
+    if (pinInput.value.length === 6) {
+      if (pinInput.value === SITE_PIN) unlock();
+      else {
+        pinError.textContent = "Wrong PIN";
+        pinInput.classList.add("shake");
+        setTimeout(() => pinInput.classList.remove("shake"), 350);
+        pinInput.value = "";
+      }
     }
   });
+  document.getElementById("lockBtn").addEventListener("click", lock);
+  if (unlocked) { pinGate.classList.add("hidden"); appEl.classList.remove("locked"); }
 
-  /* --- UI Helper Functions (Global Scope) --- */
+  /* Rooms */
+  let rooms = JSON.parse(localStorage.getItem("tb-rooms") || '["main"]');
+  if (!Array.isArray(rooms) || !rooms.length) rooms = ["main"];
+  let currentRoom = localStorage.getItem("tb-room") || rooms[0];
+  if (!rooms.includes(currentRoom)) { currentRoom = rooms[0]; }
+  let roomRef = null;
+  let currentUnsub = null;
+  let writeTimer = null;
 
-  window.copyText = () => {
-    navigator.clipboard.writeText(textarea.value);
-    toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 1200);
+  function renderRooms() {
+    roomSelect.innerHTML = "";
+    rooms.forEach(r => {
+      const o = document.createElement("option");
+      o.value = r; o.textContent = r;
+      if (r === currentRoom) o.selected = true;
+      roomSelect.appendChild(o);
+    });
+  }
+
+  function openRoom(id) {
+    if (currentUnsub) { currentUnsub(); currentUnsub = null; }
+    currentRoom = id;
+    localStorage.setItem("tb-room", id);
+    roomRef = ref(db, `rooms/${id}`);
+    textarea.value = "";
+    const local = localStorage.getItem(`tb-data-${id}`);
+    if (local) textarea.value = local;
+    currentUnsub = onValue(roomRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data !== null && document.activeElement !== textarea) {
+        textarea.value = data;
+        localStorage.setItem(`tb-data-${id}`, data);
+      }
+    }, (err) => console.error(err));
+  }
+
+  function saveRoomList() { localStorage.setItem("tb-rooms", JSON.stringify(rooms)); }
+
+  newRoomBtn.addEventListener("click", () => {
+    const name = prompt("New room name:");
+    if (!name) return;
+    const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30) || `room-${Date.now()}`;
+    if (rooms.includes(id)) { alert("Room exists"); return; }
+    rooms.push(id);
+    saveRoomList();
+    renderRooms();
+    roomSelect.value = id;
+    openRoom(id);
+  });
+
+  roomSelect.addEventListener("change", () => openRoom(roomSelect.value));
+
+  textarea.addEventListener("input", () => {
+    const text = textarea.value;
+    localStorage.setItem(`tb-data-${currentRoom}`, text);
+    clearTimeout(writeTimer);
+    writeTimer = setTimeout(() => { if (roomRef) set(roomRef, text); }, 200);
+  });
+  // flush on blur / unload
+  textarea.addEventListener("blur", () => { if (roomRef) set(roomRef, textarea.value); });
+  window.addEventListener("beforeunload", () => { if (roomRef) set(roomRef, textarea.value); });
+
+  function initRooms() {
+    renderRooms();
+    openRoom(currentRoom);
+  }
+
+  if (unlocked) initRooms();
+
+  /* UI helpers */
+  window.copyText = async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1200);
+    } catch (e) {
+      toast.textContent = "Copy failed";
+      toast.classList.add("show");
+      setTimeout(() => { toast.classList.remove("show"); toast.textContent = "Copied"; }, 1200);
+    }
   };
 
   window.clearText = () => {
     textarea.value = "";
-    localStorage.removeItem("tb-data");
-    // Also clear the data in Firebase so other devices clear too
-    set(textRef, ""); 
+    localStorage.removeItem(`tb-data-${currentRoom}`);
+    if (roomRef) set(roomRef, "");
   };
 
   window.toggleTheme = () => {
     document.body.classList.toggle("dark");
-    localStorage.setItem("tb-theme",
-      document.body.classList.contains("dark") ? "dark" : "light"
-    );
+    localStorage.setItem("tb-theme", document.body.classList.contains("dark") ? "dark" : "light");
   };
 
-  /* QR OPEN */
+  /* QR */
   qrBtn.addEventListener("click", () => {
     qrBox.innerHTML = "";
-    new QRCode(qrBox, {
-      text: window.location.href,
-      width: 180,
-      height: 180
-    });
+    new QRCode(qrBox, { text: window.location.href, width: 180, height: 180 });
     qrOverlay.classList.add("active");
   });
-
-  /* QR CLOSE */
   qrOverlay.addEventListener("click", (e) => {
-    if (e.target === qrOverlay) {
-      qrOverlay.classList.remove("active");
-      qrBox.innerHTML = "";
-    }
+    if (e.target === qrOverlay) { qrOverlay.classList.remove("active"); qrBox.innerHTML = ""; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { qrOverlay.classList.remove("active"); qrBox.innerHTML = ""; }
   });
 
-  /* Service Worker */
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
-  }
+  /* Service worker */
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 </script>
 
 </body>
