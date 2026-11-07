@@ -6,79 +6,123 @@
   <title>TextBridge</title>
 
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="apple-touch-icon" href="logotextbridge.png">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <style>
     :root {
-      --bg: #ffffff;
-      --text: #111;
-      --muted: #8e8e93;
-      --overlay: rgba(0,0,0,0.4);
-      --accent: #111;
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --text: #1d1d1f;
+      --muted: #86868b;
+      --border: rgba(0,0,0,0.08);
+      --accent: #0071e3;
+      --sidebar: #fbfbfd;
+      --overlay: rgba(0,0,0,0.3);
     }
-
     .dark {
-      --bg: #0f0f10;
+      --bg: #1d1d1f;
+      --surface: #2c2c2e;
       --text: #f5f5f7;
-      --muted: #7a7a80;
-      --overlay: rgba(0,0,0,0.6);
-      --accent: #f5f5f7;
+      --muted: #98989d;
+      --border: rgba(255,255,255,0.1);
+      --accent: #2997ff;
+      --sidebar: #252527;
+      --overlay: rgba(0,0,0,0.5);
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: 'Inter', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
       background: var(--bg);
       color: var(--text);
       transition: background 0.3s ease, color 0.3s ease;
-      display: flex;
-      flex-direction: column;
       height: 100vh;
       overflow: hidden;
     }
 
-    /* Gate blur */
-    #app { display: flex; flex-direction: column; height: 100vh; transition: filter 0.25s ease; }
+    #app { display: flex; height: 100vh; transition: filter 0.25s ease; }
     #app.locked { filter: blur(12px); pointer-events: none; user-select: none; }
 
+    /* Sidebar (vertical tabs) */
+    aside {
+      width: 220px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 12px;
+      gap: 6px;
+    }
+    .sb-title {
+      font-size: 17px;
+      font-weight: 600;
+      padding: 4px 10px 14px;
+      letter-spacing: -0.2px;
+    }
+    .tabs { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
+    .tab {
+      text-align: left;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .tab:hover { background: var(--border); }
+    .tab.active { background: var(--accent); color: #fff; }
+    .new-room {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--accent);
+      background: transparent;
+      border: 1px dashed var(--border);
+      cursor: pointer;
+    }
+    .new-room:hover { background: var(--border); }
+    .sb-footer { display: flex; gap: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .sb-footer button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .sb-footer button:hover { background: var(--border); }
+
+    /* Main */
+    main { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 20px 28px;
-      font-size: 13px;
-      color: var(--muted);
-      gap: 12px;
-      flex-wrap: wrap;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
     }
-
-    .title { font-weight: 500; letter-spacing: 0.4px; }
-
-    .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-
-    button, select {
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
+    .room-name { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    .controls { display: flex; gap: 8px; }
+    .controls button {
+      padding: 6px 14px;
+      border-radius: 8px;
       font-size: 13px;
-      transition: 0.2s;
-      font-family: inherit;
-    }
-    button:hover, select:hover { color: var(--text); }
-
-    select {
-      border: 1px solid var(--muted);
-      border-radius: 6px;
-      padding: 2px 6px;
-      background: var(--bg);
+      background: var(--surface);
+      border: 1px solid var(--border);
       color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s;
     }
+    .controls button:hover { background: var(--border); }
 
     textarea {
       flex: 1;
@@ -86,98 +130,62 @@
       border: none;
       outline: none;
       resize: none;
-      padding: 50px 28px;
-      font-size: 19px;
-      font-weight: 300;
-      line-height: 1.7;
+      padding: 40px 32px;
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 1.6;
       background: transparent;
       color: var(--text);
+      font-family: inherit;
     }
 
     footer {
       text-align: center;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
-      padding: 12px;
+      padding: 10px;
+      border-top: 1px solid var(--border);
     }
 
+    /* QR modal */
     #qrOverlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: var(--overlay);
-      backdrop-filter: blur(10px);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      visibility: hidden;
-      transition: 0.25s ease;
-      z-index: 50;
+      backdrop-filter: blur(12px);
+      display: flex; justify-content: center; align-items: center;
+      opacity: 0; visibility: hidden; transition: 0.25s ease; z-index: 50;
     }
     #qrOverlay.active { opacity: 1; visibility: visible; }
-
-    #qrBox {
-      background: var(--bg);
-      padding: 28px;
-      border-radius: 18px;
-      transform: scale(0.9);
-      transition: 0.25s ease;
-    }
-    #qrOverlay.active #qrBox { transform: scale(1); }
+    #qrBox { background: var(--surface); padding: 24px; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 
     .toast {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--text);
-      color: var(--bg);
-      padding: 8px 18px;
-      border-radius: 20px;
-      font-size: 12px;
-      opacity: 0;
-      transition: 0.3s ease;
-      z-index: 60;
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: var(--text); color: var(--bg);
+      padding: 9px 20px; border-radius: 20px; font-size: 12px;
+      opacity: 0; transition: 0.3s ease; z-index: 60;
     }
     .toast.show { opacity: 1; }
 
     /* PIN gate */
     #pinGate {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; justify-content: center; align-items: center;
       background: var(--bg);
     }
     #pinGate.hidden { display: none; }
-    .pin-card {
-      text-align: center;
-      padding: 40px;
-    }
-    .pin-card h1 { font-weight: 500; margin: 0 0 8px; }
-    .pin-card p { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+    .pin-card { text-align: center; padding: 40px; }
+    .pin-card h1 { font-weight: 600; margin: 0 0 6px; letter-spacing: -0.3px; }
+    .pin-card p { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
     .pin-input {
-      font-size: 28px;
-      letter-spacing: 12px;
-      text-align: center;
-      width: 220px;
-      padding: 12px;
-      border: 1px solid var(--muted);
-      border-radius: 12px;
-      background: transparent;
-      color: var(--text);
-      font-family: inherit;
-      outline: none;
+      font-size: 26px; letter-spacing: 10px; text-align: center;
+      width: 230px; padding: 12px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); color: var(--text);
+      font-family: inherit; outline: none;
     }
     .pin-input.shake { animation: shake 0.35s; }
-    @keyframes shake {
-      0%,100% { transform: translateX(0); }
-      25% { transform: translateX(-8px); }
-      75% { transform: translateX(8px); }
-    }
-    .pin-error { color: #e53935; font-size: 12px; margin-top: 12px; min-height: 16px; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+    .pin-error { color: #ff3b30; font-size: 12px; margin-top: 12px; min-height: 16px; }
   </style>
 </head>
 <body>
@@ -192,21 +200,27 @@
 </div>
 
 <div id="app" class="locked">
-  <header>
-    <div class="title">TextBridge</div>
-    <div class="controls">
-      <select id="roomSelect" title="Room"></select>
-      <button id="newRoomBtn">New room</button>
-      <button onclick="copyText()">Copy</button>
-      <button onclick="clearText()">Clear</button>
-      <button id="qrBtn">QR</button>
+  <aside>
+    <div class="sb-title">TextBridge</div>
+    <div id="roomTabs" class="tabs"></div>
+    <button id="newRoomBtn" class="new-room">+ New Clipboard</button>
+    <div class="sb-footer">
+      <button id="themeBtn">Theme</button>
       <button id="lockBtn">Lock</button>
     </div>
-  </header>
-
-  <textarea id="textInput" placeholder="Start typing..."></textarea>
-
-  <footer>Auto-saved locally • Private • Installable</footer>
+  </aside>
+  <main>
+    <header>
+      <div class="room-name" id="roomName">main</div>
+      <div class="controls">
+        <button onclick="copyText()">Copy</button>
+        <button onclick="clearText()">Clear</button>
+        <button id="qrBtn">QR</button>
+      </div>
+    </header>
+    <textarea id="textInput" placeholder="Start typing..."></textarea>
+    <footer>Auto-saved locally • Private • Installable</footer>
+  </main>
 </div>
 
 <div id="qrOverlay"><div id="qrBox"></div></div>
@@ -216,7 +230,6 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 
-  // shortcut: client-side PIN is "casual privacy" only; source is viewable. Upgrade to Firebase Auth + rules for real security.
   const SITE_PIN = "080801";
 
   const firebaseConfig = {
@@ -241,14 +254,22 @@
   const pinGate = document.getElementById("pinGate");
   const pinInput = document.getElementById("pinInput");
   const pinError = document.getElementById("pinError");
-  const roomSelect = document.getElementById("roomSelect");
+  const roomTabs = document.getElementById("roomTabs");
   const newRoomBtn = document.getElementById("newRoomBtn");
+  const roomName = document.getElementById("roomName");
+  const themeBtn = document.getElementById("themeBtn");
 
   /* Theme */
-  if (localStorage.getItem("tb-theme") === "dark") document.body.classList.add("dark");
-  if (!localStorage.getItem("tb-theme") && matchMedia("(prefers-color-scheme: dark)").matches) {
-    document.body.classList.add("dark");
+  function applyTheme(t) {
+    document.body.classList.toggle("dark", t === "dark");
   }
+  const savedTheme = localStorage.getItem("tb-theme");
+  if (savedTheme) applyTheme(savedTheme);
+  else if (matchMedia("(prefers-color-scheme: dark)").matches) applyTheme("dark");
+  themeBtn.addEventListener("click", () => {
+    const nowDark = document.body.classList.toggle("dark");
+    localStorage.setItem("tb-theme", nowDark ? "dark" : "light");
+  });
 
   /* PIN gate */
   let unlocked = sessionStorage.getItem("tb-unlocked") === "1";
@@ -288,19 +309,21 @@
   let rooms = JSON.parse(localStorage.getItem("tb-rooms") || '["main"]');
   if (!Array.isArray(rooms) || !rooms.length) rooms = ["main"];
   let currentRoom = localStorage.getItem("tb-room") || rooms[0];
-  if (!rooms.includes(currentRoom)) { currentRoom = rooms[0]; }
+  if (!rooms.includes(currentRoom)) currentRoom = rooms[0];
   let roomRef = null;
   let currentUnsub = null;
   let writeTimer = null;
 
-  function renderRooms() {
-    roomSelect.innerHTML = "";
+  function renderTabs() {
+    roomTabs.innerHTML = "";
     rooms.forEach(r => {
-      const o = document.createElement("option");
-      o.value = r; o.textContent = r;
-      if (r === currentRoom) o.selected = true;
-      roomSelect.appendChild(o);
+      const b = document.createElement("button");
+      b.className = "tab" + (r === currentRoom ? " active" : "");
+      b.textContent = r;
+      b.addEventListener("click", () => { if (r !== currentRoom) { currentRoom = r; renderTabs(); openRoom(r); } });
+      roomTabs.appendChild(b);
     });
+    roomName.textContent = currentRoom;
   }
 
   function openRoom(id) {
@@ -318,23 +341,20 @@
         localStorage.setItem(`tb-data-${id}`, data);
       }
     }, (err) => console.error(err));
+    renderTabs();
   }
 
   function saveRoomList() { localStorage.setItem("tb-rooms", JSON.stringify(rooms)); }
 
   newRoomBtn.addEventListener("click", () => {
-    const name = prompt("New room name:");
+    const name = prompt("New clipboard name:");
     if (!name) return;
     const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30) || `room-${Date.now()}`;
-    if (rooms.includes(id)) { alert("Room exists"); return; }
+    if (rooms.includes(id)) { alert("Already exists"); return; }
     rooms.push(id);
     saveRoomList();
-    renderRooms();
-    roomSelect.value = id;
     openRoom(id);
   });
-
-  roomSelect.addEventListener("change", () => openRoom(roomSelect.value));
 
   textarea.addEventListener("input", () => {
     const text = textarea.value;
@@ -342,15 +362,10 @@
     clearTimeout(writeTimer);
     writeTimer = setTimeout(() => { if (roomRef) set(roomRef, text); }, 200);
   });
-  // flush on blur / unload
   textarea.addEventListener("blur", () => { if (roomRef) set(roomRef, textarea.value); });
   window.addEventListener("beforeunload", () => { if (roomRef) set(roomRef, textarea.value); });
 
-  function initRooms() {
-    renderRooms();
-    openRoom(currentRoom);
-  }
-
+  function initRooms() { renderTabs(); openRoom(currentRoom); }
   if (unlocked) initRooms();
 
   /* UI helpers */
@@ -365,16 +380,10 @@
       setTimeout(() => { toast.classList.remove("show"); toast.textContent = "Copied"; }, 1200);
     }
   };
-
   window.clearText = () => {
     textarea.value = "";
     localStorage.removeItem(`tb-data-${currentRoom}`);
     if (roomRef) set(roomRef, "");
-  };
-
-  window.toggleTheme = () => {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("tb-theme", document.body.classList.contains("dark") ? "dark" : "light");
   };
 
   /* QR */
@@ -390,7 +399,6 @@
     if (e.key === "Escape") { qrOverlay.classList.remove("active"); qrBox.innerHTML = ""; }
   });
 
-  /* Service worker */
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 </script>
 
